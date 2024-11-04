@@ -5716,6 +5716,7 @@ Die Gesamtsumme stimmt nicht mehr mit urspr&uuml;nglich festgelegten Betrag '.
           );
 
           $this->app->erp->ANABREGSNeuberechnen($rechnung,"rechnung");
+          $this->app->erp->rechnung_zahlstatus_berechnen($id);
           $this->app->erp->PDFArchivieren("rechnung",$rechnung);
         }
       }
@@ -6689,12 +6690,14 @@ Die Gesamtsumme stimmt nicht mehr mit urspr&uuml;nglich festgelegten Betrag '.
   public function AuftragList()
   {
 
-     // refresh all open items
-    $openids = $this->app->DB->SelectArr("SELECT id from auftrag WHERE status <> 'abgeschlossen'");
-    foreach ($openids as $openid) {
-        $this->app->erp->AuftragAutoversandBerechnen($openid['id']);
-    }  
-
+     // refresh all open items if no cronjob is set
+     if (!$this->app->DB->Select("SELECT id FROM prozessstarter WHERE parameter = 'autoversand_berechnung' AND aktiv = 1 LIMIT 1")) {
+        $openids = $this->app->DB->SelectArr("SELECT id from auftrag WHERE status <>'abgeschlossen' and status <>'storniert' and status <>'angelegt'");
+        foreach ($openids as $openid) {
+            $this->app->erp->AuftragAutoversandBerechnen($openid['id']);
+        }  
+    }       
+            
     if($this->app->Secure->GetPOST('ausfuehren') && $this->app->erp->RechteVorhanden('auftrag', 'edit'))
     {
       $drucker = $this->app->Secure->GetPOST('seldrucker');
