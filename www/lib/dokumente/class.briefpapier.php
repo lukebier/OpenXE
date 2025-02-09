@@ -101,10 +101,7 @@ class Briefpapier extends SuperFPDF {
 
     $hintergrund = $this->getStyleElement('hintergrund');
 
-    if(!empty(erpAPI::Ioncube_Property('isdevelopmentversion'))) {
-      $this->setDevelopmentVersionBackground();
-    }
-    elseif($this->app->erp->BriefpapierHintergrunddisable)
+    if($this->app->erp->BriefpapierHintergrunddisable)
     {
     }
     else if($hintergrund=='logo')
@@ -305,8 +302,39 @@ class Briefpapier extends SuperFPDF {
     return '';
   }
 
+  // OpenXE Seriennummern
   public function GetChargeMHDSNString($type,$doctype,$doctypeid,$posid, $returnSimpleString = false)
   {
+    switch ($type) {
+        case 'sn':
+            $sql = "SELECT 
+                        s.seriennummer   
+                    FROM
+                        seriennummern s
+                    INNER JOIN
+                        seriennummern_beleg_position slp ON slp.beleg_typ = '".$doctype."' AND slp.seriennummer = s.id
+                    INNER JOIN ".$doctype."_position dp ON dp.id = slp.beleg_position
+                    INNER JOIN ".$doctype." d ON d.id = dp.".$doctype."
+                    WHERE
+                        slp.beleg_position = $posid
+            ";
+            $values = (array) $this->app->DB->SelectArr($sql);
+            return(implode(', ',array_column($values,'seriennummer')));
+        break;
+    }
+
+    if(!empty($values)){
+        if($returnSimpleString) {
+            return implode(', ', $values);
+        }
+        return implode("\r\n",$values);
+    }
+    return '';
+
+
+// XENTRAL Legacy
+/*
+
     $lieferschein_posid = 0;
     $auftrag_position_id = 0;
     $lieferschein = 0;
@@ -560,6 +588,7 @@ class Briefpapier extends SuperFPDF {
       return implode("\r\n",$tmp_string);
     }
     return '';
+*/
   }
 
   function CheckPosition($value,$doctype,$doctypeid,$posid)
@@ -1893,7 +1922,7 @@ class Briefpapier extends SuperFPDF {
     {
       if(!empty($this->corrDetails) || !empty($this->boldCorrDetails) || !empty($this->italicCorrDetails)
         || !empty($this->italicBoldCorrDetails))
-        $this->renderCorrDetails();
+        $corrDetailsY = $this->renderCorrDetails();
     }
 
     $this->renderDoctype();
@@ -1901,6 +1930,10 @@ class Briefpapier extends SuperFPDF {
     {
       $this->SetY(95);
       $this->textDetails['body']=$this->letterDetails['body'];
+    }
+
+    if ($corrDetailsY > $this->GetY()) {
+        $this->SetY($corrDetailsY);
     }
 
     $this->renderText();
@@ -1914,7 +1947,7 @@ class Briefpapier extends SuperFPDF {
     $this->renderFooter();
     $this->logofile = "";
     $this->briefpapier="";
-    $this->briefpapier2="";
+    $this->briefpapier2="";      
     if($this->addpdf)
     {
       foreach($this->addpdf as $addpdf)
@@ -2276,17 +2309,35 @@ class Briefpapier extends SuperFPDF {
     $this->SetY($this->GetY()+$this->abstand_boxrechtsoben);
 
     $this->SetFont($this->GetFont(),'',$fontinfobox);
-    $tempY = $this->GetY();
+ /*   $tempY = $this->GetY();
     $this->SetX($startpos_links_rechts);
     $this->MultiCell($this->box_breite1,4,$titleStr,"",$this->boxausrichtung); //BL
     $this->SetXY($startpos_links_rechts+$breite_spalte_rechts,$tempY);
-    $this->MultiCell($this->box_breitexi21,4,$valueStr,"",$this->boxausrichtung); //BR
+    $this->MultiCell($this->box_breitexi21,4,$valueStr,"",$this->boxausrichtung); //BR*/
 
-    $this->SetY(80+$this->abstand_artikeltabelleoben); //Hoehe Box
-    //$this->SetY(60);//+$this->abstand_artikeltabelleoben); //Hoehe Box
+    foreach($this->corrDetails as $title => $value) {
+        if($value!="")
+        {
+            $titleStr = $title !== ''?$this->app->erp->ReadyForPDF($title).": \n":" \n";
+            $valueStr = $this->app->erp->ReadyForPDF($value)."\n";
+            $startY = $this->GetY();
+            $this->SetX($startpos_links_rechts);
+            $this->MultiCell($this->box_breite1,4,$titleStr,"",$this->boxausrichtung); //BL
+            $tempY = $this->GetY();
+            $this->SetY($startY);
+            $this->SetX($startpos_links_rechts+$breite_spalte_rechts);
+            $this->MultiCell($this->box_breitexi21,4,$valueStr,"",$this->boxausrichtung); //BR*/
+
+            if ($tempY > $this->GetY()) {
+                $this->SetY($tempY);
+            }
+
+        }
+    }
+
+    return($this->GetY());
   }
-
-
+  
   public function renderDoctype() {
     //$this->Ln(1);
 
@@ -2339,7 +2390,7 @@ class Briefpapier extends SuperFPDF {
     if(isset($this->textDetails['footer'])) {
       $freitext  = $this->getStyleElement('freitext');
 
-      if($this->getStyleElement("kleinunternehmer"))
+      if($this->getStyleElement("kleinunternehmer") == '1')
       {
         if($this->textDetails['footer']=="") $this->textDetails['footer'] ="Als Kleinunternehmer im Sinne von §19 Abs.1 UStG wird Umsatzsteuer nicht berechnet!";
         else $this->textDetails['footer'] .="\r\nAls Kleinunternehmer im Sinne von § 19 Abs. 1 UStG wird Umsatzsteuer nicht berechnet!";
@@ -3273,11 +3324,10 @@ class Briefpapier extends SuperFPDF {
           {
             $freifeldbeschriftung = $this->app->erp->Beschriftung('artikel_freifeld' . $ifreifeld);
             $freifeldtyp = $this->getStyleElement('freifeld' . $ifreifeld.'typ');
-            if($freifeldtyp==='select')
+            if($freifeldtyp==='select' && str_contains($freifeldbeschriftung, '|'))
             {
               $freifeldbeschriftung = strstr($freifeldbeschriftung, '|', true);
             }
-
             if($item['desc']!=''){
               $item['desc'] = $item['desc'] . "\r\n" . $freifeldbeschriftung . ': ' . $item['freifeld' . $ifreifeld];
             }
@@ -3305,7 +3355,7 @@ class Briefpapier extends SuperFPDF {
           );
         }
       }
-
+   
       if(!empty($this->doctype) && !empty($this->id) && strpos($item['desc'], '{') !== false) {
         $item['desc'] = $this->app->erp->ParseUserVars($this->doctype, $this->id ,$item['desc']);
       }

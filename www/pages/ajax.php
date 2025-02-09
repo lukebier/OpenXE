@@ -438,8 +438,11 @@ class Ajax {
       $objekt = $this->app->YUI->dateien_module_objekt_map($module);      
 
       $ersteller = $this->app->DB->real_escape_string($this->app->User->GetName());
+
+      $geschuetzt = $this->app->DB->Select("SELECT geschuetzt FROM datei WHERE id = '".$id."'");
+
       $datei = $this->app->DB->SelectArr("SELECT d.id, s.id as sid FROM datei d LEFT JOIN datei_stichwoerter s ON d.id=s.datei LEFT JOIN datei_version v ON v.datei=d.id WHERE s.objekt LIKE '$objekt' AND s.parameter='$parameter' AND d.geloescht=0 AND d.id = '$id' LIMIT 1");
-      if($datei)
+      if($datei && !$geschuetzt)
       {
         $sid = $datei[0]['sid'];
         if($subjekt && $sid)
@@ -2608,6 +2611,35 @@ select a.kundennummer, (SELECT name FROM adresse a2 WHERE a2.kundennummer = a.ku
           $newarr[] = $arr[$i]['name'];
         }
         break;
+        case "seriennummerverfuegbar":
+            $artikel = (int)$this->app->Secure->GetGET('artikel');
+            $lieferschein = (int)$this->app->Secure->GetGET('lieferschein');
+
+            $sql = "
+                SELECT DISTINCT
+                    s.seriennummer
+                FROM    
+                    seriennummern s
+                INNER JOIN
+                    lieferschein_position lp ON lp.artikel = s.artikel
+                WHERE
+                    s.eingelagert = 1
+                    AND s.seriennummer LIKE '%$term%' 
+                    AND (s.artikel = '$artikel' OR '$artikel' = '0')                 
+                LIMIT 20
+            ";
+
+            //echo($sql);
+
+            $arr = $this->app->DB->SelectArr($sql);
+
+            $carr = !empty($arr)?count($arr):0;
+            for($i = 0; $i < $carr; $i++) {
+              $newarr[] = $arr[$i]['seriennummer'];
+            }
+        break;
+
+        break;
       case "artikelmengeinbeleg":
         $beleg = $this->app->Secure->GetGet('beleg');
         $belegid = $this->app->Secure->GetGet('id');
@@ -4194,6 +4226,14 @@ select a.kundennummer, (SELECT name FROM adresse a2 WHERE a2.kundennummer = a.ku
           )
         );
 
+        break;
+        case "smarty_template":
+            $newarr = $this->app->DB->SelectFirstCols(
+            sprintf(
+                "SELECT CONCAT(`id`,' ',`name`) FROM `smarty_templates` WHERE (`name` LIKE '%%%s%%')",
+                $term
+            )
+        );
         break;
       default:
         $newarr = null;

@@ -56,7 +56,6 @@ class erpAPI
   private static $license;
 
   private $modulvorhandenlist = null;
-  private static $ioncubeproperties = null;
 
   public static $lasttime = 0;
   public $uebersetzungId;
@@ -616,271 +615,6 @@ function Belegeexport($datei, $doctype, $doctypeid, $append = false, $optionen =
   }
 
   /**
-   * @deprecated
-   *
-   * @return bool
-   */
-  function checkLicense()
-  {
-    return true;
-  }
-
-  // @refactor LicenceManager Komponente
-  final public function isIoncube()
-  {
-    if(empty(erpAPI::$license))
-    {
-      erpAPI::Ioncube_Property('');
-    }
-    return !empty(erpAPI::$license);
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_Property($key = '')
-  {
-    if(!class_exists('License'))
-    {
-      if(is_file(dirname(dirname(__DIR__)).'/phpwf/plugins/class.license.php'))
-      {
-        include(dirname(dirname(__DIR__)).'/phpwf/plugins/class.license.php');
-      }
-    }
-    if(class_exists('License'))
-    {
-      if(!erpAPI::$license) {
-        erpAPI::$license = new License();
-      }
-    }
-    if(erpAPI::$license) {
-      return erpAPI::$license->getProperty($key);
-    }
-    if(function_exists('ioncube_license_properties'))
-    {
-      if(!self::$ioncubeproperties) {
-        self::$ioncubeproperties = ioncube_license_properties();
-      }
-      $data = self::$ioncubeproperties;
-      if($data && is_array($data) && isset($data[$key]) && is_array($data[$key]) && isset($data[$key]['value'])) {
-        $value = $data[$key]['value'];
-        return $value;
-      }
-    }
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_getMaxUser()
-  {
-    return erpAPI::Ioncube_Property('maxuser');
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_getMaxLightusers()
-  {
-    return erpAPI::Ioncube_Property('maxlightuser');
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_getMaxLightusersRights()
-  {
-    $rechte = (int)erpAPI::Ioncube_Property('maxlightuserrights');
-    if($rechte < 5) {
-      $rechte = 30;
-    }
-    return $rechte;
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_BenutzervorlageAnzahlLightuser(&$app, $vorlage)
-  {
-    if(!isset($app->DB)) {
-      return;
-    }
-    return $app->DB->Select("SELECT count(id) FROM `user` WHERE activ = 1 AND type = 'lightuser' AND vorlage = '$vorlage'");
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_LightuserRechteanzahl($app, $id, $type = 'user')
-  {
-    if(!isset($app->DB)) {
-      return false;
-    }
-    if($type === 'vorlage') {
-      $id = $app->DB->Select("SELECT id FROM `uservorlage` WHERE bezeichnung <> '' AND bezeichnung = '".$app->DB->real_escape_string($id)."' LIMIT 1");
-    }
-    $id = (int)$id;
-    if($id <= 0) {
-      return false;
-    }
-    if($type === 'vorlage')
-    {
-      if(!$app->DB->Select("SELECT id FROM `uservorlage` WHERE id = '$id' LIMIT 1")) {
-        return false;
-      }
-      return $app->DB->Select("SELECT count(DISTINCT module, action) FROM `uservorlagerights` WHERE vorlage = '$id' AND permission = 1");
-    }
-    if(!$app->DB->Select("SELECT id FROM `user` WHERE id = '$id' LIMIT 1")) {
-      return false;
-    }
-    return $app->DB->Select("SELECT count(DISTINCT module, action) FROM `userrights` WHERE `user` = '$id' AND permission = 1");
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_HasExpired()
-  {
-    return erpAPI::Ioncube_Property('expdate') && (int)erpAPI::Ioncube_Property('expdate') < time();
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_ExpireInDays()
-  {
-    if(function_exists('ioncube_file_info'))
-    {
-      if(erpAPI::Ioncube_Property('expdate')) {
-        return round(((int)erpAPI::Ioncube_Property('expdate')-time())/86400);
-      }
-    }
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_BeforeExpire()
-  {
-    if(false === erpAPI::Ioncube_ExpireInDays()) {
-      return false;
-    }
-    return erpAPI::Ioncube_ExpireInDays() < 42;
-  }
-
-  // @refactor LicenceManager Komponente
-  static function Ioncube_ExpireDate($format = 'd.m.Y')
-  {
-    if(function_exists('ioncube_file_info'))
-    {
-      $dat = erpAPI::Ioncube_Property('expdate');
-      if(!$dat) {
-        return false;
-      }
-      return date($format,(int)$dat);
-    }
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function GetIoncubeServerList()
-  {
-    $ret = null;
-    $i = 1;
-    while($check = $this->IoncubeProperty('servername'.$i))
-    {
-      $ret[] = $check;
-      $i++;
-    }
-    return $ret;
-  }
-
-  // @refactor LicenceManager Komponente
-
-  /**
-   * @return bool
-   */
-  final function ServerOK()
-  {
-    $servername = (isset($_SERVER['SERVER_NAME']) && $_SERVER['SERVER_NAME'] != '')?$_SERVER['SERVER_NAME']:(isset($_SERVER['HTTP_HOST'])?$_SERVER['HTTP_HOST']:'');
-    $serverlist = $this->GetIoncubeServerList();
-    if(!$serverlist) {
-      return true;
-    }
-    foreach($serverlist as $check) {
-      if($servername == $check) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeProperty($key)
-  {
-    if(!class_exists('License'))
-    {
-      if(is_file(dirname(dirname(__DIR__)).'/phpwf/plugins/class.license.php'))
-      {
-        include(dirname(dirname(__DIR__)).'/phpwf/plugins/class.license.php');
-      }
-    }
-    if(class_exists('License'))
-    {
-      if(!erpAPI::$license)erpAPI::$license = new License();
-    }
-    if(erpAPI::$license)return erpAPI::$license->getProperty($key);
-    if(method_exists('erpAPI','Ioncube_Property'))return erpAPI::Ioncube_Property($key);
-    if(function_exists('ioncube_license_properties'))
-    {
-      $data = ioncube_license_properties();
-      if($data && isset($data[$key]) && isset($data[$key]['value']))return $data[$key]['value'];
-    }
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubegetMaxUser()
-  {
-    return $this->IoncubeProperty('maxuser');
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeHasExpired()
-  {
-    if($this->IoncubeProperty('expdate'))
-    {
-      if((int)$this->IoncubeProperty('expdate') < time())return true;
-    }
-    return false;
-    if(function_exists('ioncube_license_has_expired'))return ioncube_license_has_expired();
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeServerOK()
-  {
-    if(function_exists('ioncube_license_matches_server'))return ioncube_license_matches_server();
-    return true;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeExpireInDays()
-  {
-    if(function_exists('ioncube_file_info'))
-    {
-      if($this->IoncubeProperty('expdate'))return round(((int)$this->IoncubeProperty('expdate')-time())/86400);
-    }
-    return false;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeBeforeExpire()
-  {
-    if(false === $this->IoncubeExpireInDays())return false;
-    return $this->IoncubeExpireInDays() < 42;
-  }
-
-  // @refactor LicenceManager Komponente
-  final function IoncubeExpireDate($format = 'd.m.Y')
-  {
-    if(function_exists('ioncube_file_info'))
-    {
-      $dat = $this->IoncubeProperty('expdate');
-      if(!$dat) {
-        return false;
-      }
-      return date($format,(int)$dat);
-    }
-    return false;
-  }
-
-  /**
    * @return array|null
    */
   public function getAppList()
@@ -891,127 +625,6 @@ function Belegeexport($datei, $doctype, $doctypeid, $append = false, $optionen =
 
     return $this->appList[$this->app->Conf->WFdbname];
   }
-
-// @refactor LicenceManager Komponente
-function ModuleBenutzeranzahlLizenzFehler($add = '', $typ = 'module', $vorlage = 0)
-{
-  if(!method_exists($this->app->erp, 'IoncubeProperty')) {
-    return null;
-  }
-  if($typ === 'module')
-  {
-    if(strpos($add, 'shopimporter_') === 0) {
-      return null;
-    }
-    if($add === 'welcome' || $add === 'api' || $add === 'ajax') {
-      return null;
-    }
-    $anz = (int)$this->IoncubeProperty('moduleanzX'.str_replace('_','X',$add));
-    if($anz > 1) {
-      $anzadmin = (int)$this->app->DB->Select("SELECT count(id) FROM `user` WHERE activ = 1 AND type = 'admin'");
-      $rechte = (int)$this->app->DB->Select("SELECT count(u.i) FROM  `user` u 
-      INNER JOIN (SELECT DISTINCT `user` FROM `userrights` WHERE module = '$add' AND permission = 1) ur ON u.id = ur.`user`
-       WHERE activ = 1 AND type <> 'admin'
-      ");
-      if($anzadmin + $rechte + 1 > $anz) {
-        return array('Error'=> 'Es '.($anz > 1?'sind':'ist').' nur '.$anz.' User f&uuml;r das Modul '.ucfirst($add).' lizenziert, es werden aber '.($anzadmin + $rechte + 1).' ben&ouml;tigt');
-      }
-    }
-    return null;
-  }
-  if($typ === 'vorlage' && $vorlage)
-  {
-    if(strpos($add, 'shopimporter_') === 0) {
-      return null;
-    }
-    if($add === 'welcome' || $add === 'api' || $add === 'ajax') {
-      return null;
-    }
-    $anz = (int)$this->IoncubeProperty('moduleanzX'.str_replace('_','X',$add));
-    if($anz > 1)
-    {
-      $anzadmin = (int)$this->app->DB->Select("SELECT count(id) FROM `user` WHERE activ = 1 AND type = 'admin'");
-      $bezeichnung = $this->app->DB->Select("SELECT bezeichnung FROM uservorlage WHERE id = '$vorlage' LIMIT 1");
-      if($bezeichnung == '') {
-        return null;
-      }
-      $rechte = (int)$this->app->DB->Select("SELECT count(u.i) FROM  `user` u 
-      INNER JOIN (SELECT DISTINCT `user` FROM `userrights` WHERE module = '$add' AND permission = 1) ur ON u.id = ur.`user`
-       WHERE activ = 1 AND type <> 'admin' AND vorlage != '".$this->app->DB->real_escape_string($bezeichnung)."'
-      ");
-      $neueuser = (int)$this->app->DB->Select("SELECT count(u.id) FROM  `user` u 
-       WHERE activ = 1 AND type <> 'admin' AND vorlage = '".$this->app->DB->real_escape_string($bezeichnung)."'
-      ");
-      if($anzadmin + $rechte + $neueuser > $anz) {
-        return array('Error'=> 'Es '.($anz > 1?'sind':'ist').' nur '.$anz.' User f&uuml;r das Modul '.ucfirst($add).' lizenziert, es werden aber '.($anzadmin + $rechte + $neueuser).' ben&ouml;tigt');
-      }
-    }
-  }
-
-  return null;
-}
-
-// @refactor LicenceManager Komponente
-function OnlineshopsLizenzFehler($add = '')
-{
-  if(!method_exists($this->app->erp, 'IoncubeProperty')) {
-    return false;
-  }
-  $shops = $this->app->DB->SelectArr("SELECT shoptyp,modulename  FROM shopexport WHERE aktiv = 1 AND (shoptyp = 'intern' OR shoptyp = 'custom') AND modulename <> '' ORDER BY modulename");
-  if(!$shops) {
-    return false;
-  }
-  $counts = null;
-  foreach($shops as $shop)
-  {
-    if($shop['shoptyp'] === 'intern')
-    {
-      $modulename = $shop['modulename'];
-    }else{
-      if(preg_match_all('/(.*)\_(\d+).php/i',$shop['modulename'],$erg))
-      {
-        $modulename = $erg[1][0];
-      }else $modulename = '';
-    }
-    if($modulename != '')
-    {
-      if(!isset($counts[$modulename]))$counts[$modulename] = 0;
-      $counts[$modulename]++;
-    }
-  }
-  if($add != '')
-  {
-    if(substr($add,-4) === '.php')
-    {
-      if(preg_match_all('/(.*)\_(\d+).php/i',$add,$erg))
-      {
-        $add = $erg[1][0];
-      }else {
-        $add = '';
-      }
-    }
-  }
-
-  if($add != '')
-  {
-    if(!isset($counts[$add])) {
-      $counts[$add] = 0;
-    }
-    $counts[$add]++;
-  }
-  if($counts) {
-    foreach($counts as $k => $v) {
-      if($v <= 1) {
-        continue;
-      }
-      $anz = (int)$this->IoncubeProperty('moduleanzX'.str_replace('_','X',$k));
-      if($anz > 0 && $anz < $v) {
-        return array('Error'=> 'Es '.($anz > 1?'sind':'ist').' nur '.$anz.' Importer des Typs '.ucfirst(str_replace('shopimporter_','',$k)).' lizenziert');
-      }
-    }
-  }
-  return false;
-}
 
   function getApps()
   {
@@ -1514,8 +1127,10 @@ public function NavigationHooks(&$menu)
   function FormatMenge($spalte, $decimals = 0)
   {
     return ('FORMAT('.$spalte.','.$decimals.',\'de_DE\')');
+  }
 
-//    return "replace(trim($spalte)+0,'.',',')";
+  function FormatMengeFuerFormular($spalte) {
+    return "trim($spalte)+0";
   }
 
   function FormatUCfirst($spalte)
@@ -2584,6 +2199,18 @@ public function NavigationHooks(&$menu)
     return false;
   }
 
+    // Rechnung special treatment because of XML
+    function RechnungArchivieren($id) {
+        $sql = "SELECT xmlrechnung FROM rechnung WHERE id = '".$id."' LIMIT 1";
+        $xmlrechnung = $this->app->DB->Select($sql);
+        if ($xmlrechnung) {
+            $rechnungsmodul = $this->app->loadModule('rechnung', false);
+            return($rechnungsmodul->RechnungArchiviereXML($id));
+        } else {
+            $this->PDFArchivieren('rechnung',$id,true);
+        }
+    }
+
   // @refactor in Location Klasse
   function UrlOrigin($s, $use_forwarded_host=false)
   {
@@ -2810,14 +2437,45 @@ public function NavigationHooks(&$menu)
 
   }
 
-function LieferscheinSeriennummernberechnen($id)
-{
-  /** @var Seriennummern $obj */
-  $obj = $this->LoadModul('seriennummern');
-  if(!empty($obj) && method_exists($obj, 'LieferscheinSeriennummernberechnen')) {
-    $obj->LieferscheinSeriennummernberechnen($id);
-  }
-}
+    function LieferscheinSeriennummernberechnen($id)
+    {
+      /** @var Seriennummern $obj */
+      $obj = $this->LoadModul('seriennummern');
+      if(!empty($obj) && method_exists($obj, 'LieferscheinSeriennummernberechnen')) {
+        $obj->LieferscheinSeriennummernberechnen($id);
+      }
+    }
+
+    function SeriennummernCheckBenachrichtigung(int $artikel_id) {
+        $obj = $this->LoadModul('seriennummern');
+        return($obj->seriennummern_check_and_notification_stock_added($artikel_id));
+    }  
+    
+    function SeriennummernCheckLieferscheinBenachrichtigung(int $lieferschein_id) {
+        $obj = $this->LoadModul('seriennummern');
+        return($obj->seriennummern_check_and_notification_delivery_note($lieferschein_id));
+    }
+
+    function SeriennummernCheckLieferscheinWarnung(int $lieferschein_id) {
+        $obj = $this->LoadModul('seriennummern');
+        return($obj->seriennummern_check_and_message_delivery_notes($lieferschein_id));
+    }
+
+    function SeriennummernCheckLieferschein($lieferschein_id = null, $ignore_date = false, $only_missing = true, $group_lieferschein = false) {
+        $obj = $this->LoadModul('seriennummern');       
+        return ($obj->seriennummern_check_delivery_notes($lieferschein_id, $ignore_date, $only_missing, $group_lieferschein));
+    }
+    
+    function SeriennummernCheckWareneingangWarnung(int $wareneingang_id) {
+        $obj = $this->LoadModul('seriennummern');
+        return($obj->seriennummern_check_and_message_incoming_goods($wareneingang_id));
+    }
+
+    function SeriennummernCheckWareneingang($wareneingang_id = null, $ignore_date = false, $only_missing = true, $group_wareneingang = false) {
+        $obj = $this->LoadModul('seriennummern');       
+        return ($obj->seriennummern_check_incoming_goods($wareneingang_id, $ignore_date, $only_missing, $group_wareneingang));
+    }
+
 
 // @refactor in Lager Modul
 function ArtikelAnzahlLagerPlatzMitSperre($artikel,$lager_platz)
@@ -2904,7 +2562,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
             }
             if(isset($v['table']) &&  $v['table'] == 'seriennummern' && !empty($v['id']))
             {
-              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
+// Xentral Legacy              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
             }elseif(isset($v['table']) && $v['table'] == 'beleg_chargesnmhd' && !empty($v['id'])){
               $this->app->DB->Delete("DELETE FROM beleg_chargesnmhd WHERE id = '".$v['id']."' LIMIT 1");
             }
@@ -2931,7 +2589,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
             }
             if(isset($v['table']) &&  $v['table'] == 'seriennummern' && !empty($v['id']))
             {
-              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
+// Xentral Legacy              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
             }elseif(isset($v['table']) && $v['table'] == 'beleg_chargesnmhd' && !empty($v['id'])){
               $this->app->DB->Delete("DELETE FROM beleg_chargesnmhd WHERE id = '".$v['id']."' LIMIT 1");
             }
@@ -2957,7 +2615,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
             }
             if(isset($v['table']) &&  $v['table'] == 'seriennummern' && !empty($v['id']))
             {
-              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
+// Xentral Legacy              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
             }elseif(isset($v['table']) && $v['table'] == 'beleg_chargesnmhd' && !empty($v['id'])){
               $this->app->DB->Delete("DELETE FROM beleg_chargesnmhd WHERE id = '".$v['id']."' LIMIT 1");
             }
@@ -2966,7 +2624,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
           }else{
             if(isset($v['table']) &&  $v['table'] == 'seriennummern' && !empty($v['id']))
             {
-              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
+// Xentral Legacy              $this->app->DB->Delete("DELETE FROM seriennummern WHERE id = '".$v['id']."' LIMIT 1");
             }elseif(isset($v['table']) && $v['table'] == 'beleg_chargesnmhd' && !empty($v['id'])){
               $this->app->DB->Delete("DELETE FROM beleg_chargesnmhd WHERE id = '".$v['id']."' LIMIT 1");
             }
@@ -3545,6 +3203,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
             }
 
           $this->RunHook('erpapi_lieferschein_auslagern', 1, $lieferschein);
+          $this->SeriennummernCheckLieferscheinWarnung($lieferschein, true);
           $this->LieferscheinProtokoll($lieferschein,"Lieferschein ausgelagert");
         }
     }
@@ -3620,7 +3279,7 @@ function LieferscheinEinlagern($id,$grund="Lieferschein Einlagern", $lpiids = nu
               );
               $this->app->erp->ANABREGSNeuberechnen($invoice['id'], 'rechnung');
               if($invoice['schreibschutz']) {
-                $this->app->erp->PDFArchivieren('rechunng', $invoice['id'], true);
+                $this->app->erp->RechnungArchivieren($invoice['id']);
               }
             }
           }
@@ -6283,59 +5942,9 @@ title: 'Abschicken',
       $this->modulvorhandenlist[$module] = false;
       return false;
     }
-    if(!$this->IoncubeProperty('modullizenzen')) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-    if($module === 'chat') {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-    $apps = $this->getAppList();
-    $hasAppModuleProperty = !empty($apps[$module]) && isset($apps[$module]['Versionen']);
-    if($hasAppModuleProperty && (string)$apps[$module]['Versionen'] === '') {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
 
-    $ablaufdatum = $this->IoncubeProperty('moduleablaufdatumX'.str_replace('_','X',$module));
-    if(!empty($ablaufdatum) && strtotime($ablaufdatum) < strtotime(date('Y-m-d'))) {
-      @unlink(__DIR__.$subdir.$modulefile.'.php');
-      $this->modulvorhandenlist[$module] = false;
-      return false;
-    }
-    if(!isset($apps[$module])) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-
-    $version = $this->Version();
-    if($hasAppModuleProperty && strpos($apps[$module]['Versionen'], $version) !== false) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-
-    if(!empty(erpAPI::Ioncube_Property('moduleX'.str_replace('_','X',$module)))) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-    if($isModuleCronjob && !empty('moduleX'.str_replace('_','X',substr($module, 8)))) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-
-    if(empty(erpAPI::Ioncube_Property('modulecheck'))) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-    if($isModulePage && strpos($module, 'shopimporter_') === 0 && !empty($this->IoncubeProperty('newversion'))) {
-      $this->modulvorhandenlist[$module] = true;
-      return true;
-    }
-
-    $this->modulvorhandenlist[$module] = false;
-    
-    return false;
+    $this->modulvorhandenlist[$module] = true;
+    return true;
   }
 
   // @refactor in UserPermission Komponente
@@ -7901,14 +7510,7 @@ function SetCheckCronjob($value)
    */
 public function CheckCronjob($checkMaintenance = true)
 {
-  if(!empty(erpAPI::Ioncube_Property('isdevelopmentversion'))) {
-    if (empty($this->app->erp->GetKonfiguration('last_isdevelopmentversion'))) {
-      $this->app->erp->SetKonfigurationValue('last_isdevelopmentversion', '1');
-      $this->app->erp->SetKonfigurationValue('checkcronjob_deaktiviert', '1');
-      return false;
-    }
-  }
-  elseif (!empty($this->app->erp->GetKonfiguration('last_isdevelopmentversion'))) {
+  if (!empty($this->app->erp->GetKonfiguration('last_isdevelopmentversion'))) {
     $this->app->erp->SetKonfigurationValue('last_isdevelopmentversion', '');
     $this->app->erp->SetKonfigurationValue('checkcronjob_deaktiviert', '1');
     return false;
@@ -12095,22 +11697,6 @@ function SendPaypalFromAuftrag($auftrag, $test = false)
     if($this->app->User->GetParameter('tooltipinline_autoopen')) {
       $this->app->Tpl->Add('INLINEHELPOPEN', ' class="inlineautoopen" ');
     }
-    $phone = str_replace(['-',' '],'', erpAPI::Ioncube_Property('phone_smb'));
-    if(empty($phone)) {
-      $this->app->Tpl->Set('BEFORESUPPORTPHONE', '<!--');
-      $this->app->Tpl->Set('AFTERSUPPORTPHONE', '-->');
-    }
-    else {
-      $this->app->Tpl->Set('SUPPORTPHONENUMBER', $phone);
-      $sipuid = $this->app->erp->ModulVorhanden('sipgate') && $this->app->erp->GetPlacetelSipuid();
-      if(!empty($sipuid)) {
-        $this->app->Tpl->Set('SIPGATEACTIVE', 1);
-        $this->app->Tpl->Set('SUPPORTPHONENUMBERLINK', '#');
-      }
-      else{
-        $this->app->Tpl->Set('SUPPORTPHONENUMBERLINK', 'tel://'.$phone);
-      }
-    }
     $this->app->Tpl->Parse('PAGE','tooltipinline.tpl');
   }
 
@@ -12367,6 +11953,7 @@ function SendPaypalFromAuftrag($auftrag, $test = false)
           // darunter war ein else if
           if($just_stueckliste=="1" && $explodiert=="0")
           {
+          /* table lieferkette_bestellung does not exist
             $checklieferkette = 0;
             if($typ === 'auftrag'){
               $checklieferkette = $this->app->DB->Select("SELECT id FROM lieferkette_bestellung WHERE belegtyp='auftrag' AND belegid='$auftrag' LIMIT 1");
@@ -12380,14 +11967,14 @@ function SendPaypalFromAuftrag($auftrag, $test = false)
               WHERE s.stuecklistevonartikel='$artikel' AND s.art!='it' AND s.art!='bt'"
               );
             }
-            else{
+            else{ */
               $artikel_von_stueckliste = $this->app->DB->SelectArr(
                 "SELECT s.*, art.nummer AS artnummer,art.projekt AS artprojekt
               FROM stueckliste AS s
               INNER JOIN artikel AS art ON s.artikel = art.id
               WHERE s.stuecklistevonartikel='$artikel'"
               );
-            }
+//            }
 
             $treffer++;
             $changed = true;
@@ -13821,6 +13408,18 @@ function SendPaypalFromAuftrag($auftrag, $test = false)
         } else {
             $konto = $this->app->DB->Select("SELECT CONCAT(kurzbezeichnung,' ',bezeichnung) FROM konten WHERE id = '$value' LIMIT 1");
             return($konto);
+        }
+    }
+
+    function ReplaceSmartyTemplate($db,$value,$fromform = null) {
+        $value = $this->app->DB->real_escape_string($value);
+
+        if ($db) {
+            $smarty_template = explode(' ',$value)[0];
+            return($smarty_template);
+        } else {
+            $smarty_template = $this->app->DB->Select("SELECT CONCAT(id,' ',name) FROM smarty_templates WHERE id = '$value' LIMIT 1");
+            return($smarty_template);
         }
     }
 
@@ -15648,20 +15247,21 @@ function Gegenkonto($ust_befreit,$ustid='', $doctype = '', $doctypeId = 0)
     }
 
     $rechnungarr = $this->app->DB->SelectRow(
-      "SELECT adresse, email, name,belegnr,projekt,sprache,schreibschutz,zuarchivieren 
+      "SELECT adresse, email, name,belegnr,projekt,sprache,schreibschutz,zuarchivieren,xmlrechnung
       FROM rechnung WHERE id='$id' LIMIT 1"
     );
     if(empty($rechnungarr)) {
       return;
     }
     if(!empty($rechnungarr['schreibschutz']) && !empty($rechnungarr['zuarchivieren'])) {
-      $this->app->erp->PDFArchivieren('rechnung', $id, true);
+      $this->app->erp->RechnungArchivieren($id);
     }
     $adresse = $rechnungarr['adresse'];
     $to = $rechnungarr['email'];
     $to_name = $rechnungarr['name'];
     $belegnr = $rechnungarr['belegnr'];
     $projekt = $rechnungarr['projekt'];
+    $xmlrechnung = $rechnungarr['xmlrechnung'];
 
     $sprache = $rechnungarr['sprache'];
     if($sprache=='' && $adresse > 0) {
@@ -15686,21 +15286,27 @@ function Gegenkonto($ust_befreit,$ustid='', $doctype = '', $doctypeId = 0)
     $betreff = $this->ParseUserVars('rechnung',$id,$betreff); // 19.01.2018 eingefuegt BW
     if($id > 0)
     {
-      $this->app->erp->BriefpapierHintergrunddisable = false;
-      if(class_exists('RechnungPDFCustom'))
-      {
-        $Brief = new RechnungPDFCustom($this->app,$projekt);
-      }else{
-        $Brief = new RechnungPDF($this->app,$projekt);
-      }
-      $Brief->GetRechnung($id);
-      $arrtmpfile[] = $Brief->displayTMP();
 
-      if(!$Brief->DocumentArchiviert()) {
-        $Brief->ArchiviereDocument(true, true);
+      if (!$xmlrechnung) {
+          $this->app->erp->BriefpapierHintergrunddisable = false;
+          if(class_exists('RechnungPDFCustom'))
+          {
+            $Brief = new RechnungPDFCustom($this->app,$projekt);
+          }else{
+            $Brief = new RechnungPDF($this->app,$projekt);
+          }
+          $Brief->GetRechnung($id);
+          $arrtmpfile[] = $Brief->displayTMP();
+
+          if(!$Brief->DocumentArchiviert()) {
+            $Brief->ArchiviereDocument(true, true);
+          }
+          $md5arr[] = @md5_file($arrtmpfile[(!empty($arrtmpfile)?count($arrtmpfile):0)-1]);
+      } else {
+        $arrtmpfile = Array();
+        $md5arr = Array();
       }
 
-      $md5arr[] = @md5_file($arrtmpfile[(!empty($arrtmpfile)?count($arrtmpfile):0)-1]);
       // anhaenge automatisch mitversenden
       $resultdateien = $this->app->DB->SelectArr("SELECT datei FROM datei_stichwoerter WHERE objekt LIKE 'Rechnung' AND parameter='$id'");
       $cResultdateien = !empty($resultdateien)?count($resultdateien):0;
@@ -20507,6 +20113,8 @@ function ChargenMHDAuslagern($artikel, $menge, $lagerplatztyp, $lpid,$typ,$wert,
     }
 
     $this->RunHook('LagerEinlagern_after',7, $artikel, $menge, $regal, $projekt, $grund, $doctype,$doctypeid);
+    
+    $this->SeriennummernCheckBenachrichtigung($artikel);
   }
 
   function CreateLagerPlatzInhaltVPE($artikel, $menge, $gewicht, $laenge, $breite, $hoehe, $menge2 = 0, $gewicht2 = 0, $laenge2 = 0, $breite2 = 0, $hoehe2 = 0)
@@ -23889,54 +23497,63 @@ function ChargenMHDAuslagern($artikel, $menge, $lagerplatztyp, $lpid,$typ,$wert,
       if($typ=="rechnung")
       {
         // sende
-        $this->app->erp->BriefpapierHintergrunddisable = !$this->app->erp->BriefpapierHintergrunddisable;
-        if(class_exists('RechnungPDFCustom'))
-        {
-          $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
-        }else{
-          $Brief = new RechnungPDF($this->app,$projektbriefpapier);
-        }
-        $Brief->GetRechnung($id);
+        $xmlrechnung = $this->app->DB->Select("SELECT xmlrechnung FROM rechnung WHERE id ='".$id."' LIMIT 1");
+        if ($xmlrechnung) {
+            $xmlrechnungresult = $this->app->erp->GetXMLRechnung($id);
+            if ($xmlrechnungresult['success']) {
+                $tmpfile = $xmlrechnungresult['xml'];
+            } else {
+                throw new exception("XML Rechnung fehlgeschlagen!");
+            }
+        } else {
+            $this->app->erp->BriefpapierHintergrunddisable = !$this->app->erp->BriefpapierHintergrunddisable;
+            if(class_exists('RechnungPDFCustom'))
+            {
+              $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
+            }else{
+              $Brief = new RechnungPDF($this->app,$projektbriefpapier);
+            }
+            $Brief->GetRechnung($id);
 
-        if(isset($sammelpdf))
-        {
-          foreach($sammelpdf as $dat)
-          {
-            $Brief->AddPDF($dat);
-          }
-        }
+            if(isset($sammelpdf))
+            {
+              foreach($sammelpdf as $dat)
+              {
+                $Brief->AddPDF($dat);
+              }
+            }
 
-        //$Brief->ArchiviereDocument();
-        $tmpfile = $Brief->displayTMP();
-        $Brief->ArchiviereDocument(true);
-        unlink($tmpfile);
-        $this->app->erp->BriefpapierHintergrunddisable = !$this->app->erp->BriefpapierHintergrunddisable;
-        if(class_exists('RechnungPDFCustom'))
-        {
-          $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
-        }else{
-          $Brief = new RechnungPDF($this->app,$projektbriefpapier);
+            //$Brief->ArchiviereDocument();
+            $tmpfile = $Brief->displayTMP();
+            $Brief->ArchiviereDocument(true);
+            unlink($tmpfile);
+            $this->app->erp->BriefpapierHintergrunddisable = !$this->app->erp->BriefpapierHintergrunddisable;
+            if(class_exists('RechnungPDFCustom'))
+            {
+              $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
+            }else{
+              $Brief = new RechnungPDF($this->app,$projektbriefpapier);
+            }
+            $Brief->GetRechnung($id);
+            $tmpfile = $Brief->displayTMP();
+            $Brief->ArchiviereDocument(true);
+            if(isset($sammelpdf))
+            {
+              unlink($tmpfile);
+              if(class_exists('RechnungPDFCustom'))
+              {
+                $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
+              }else{
+                $Brief = new RechnungPDF($this->app,$projektbriefpapier);
+              }
+              $Brief->GetRechnung($id);
+              foreach($sammelpdf as $dat)
+              {
+                $Brief->AddPDF($dat);
+              }
+              $tmpfile = $Brief->displayTMP();
+            }
         }
-        $Brief->GetRechnung($id);
-        $tmpfile = $Brief->displayTMP();
-        $Brief->ArchiviereDocument(true);
-        if(isset($sammelpdf))
-        {
-          unlink($tmpfile);
-          if(class_exists('RechnungPDFCustom'))
-          {
-            $Brief = new RechnungPDFCustom($this->app,$projektbriefpapier);
-          }else{
-            $Brief = new RechnungPDF($this->app,$projektbriefpapier);
-          }
-          $Brief->GetRechnung($id);
-          foreach($sammelpdf as $dat)
-          {
-            $Brief->AddPDF($dat);
-          }
-          $tmpfile = $Brief->displayTMP();
-        }
-
         //$Brief->ArchiviereDocument();
 
       }
@@ -25744,6 +25361,7 @@ function MailSendFinal($from,$from_name,$to,$to_name,$betreff,$text,$files="",$p
     $uebersetzung['dokument_lieferschein']['deutsch'] = "Lieferschein";
     $uebersetzung['dokument_retoure']['deutsch'] = "Retoure";
     $uebersetzung['dokument_kommissionierschein']['deutsch'] = "Kommissionierschein";
+    $uebersetzung['dokument_produktion']['deutsch'] = "Produktion";
     $uebersetzung['dokument_ansprechpartner']['deutsch'] = "Ansprechpartner";
     $uebersetzung['dokument_rechnungsdatum']['deutsch'] = "Rechnungsdatum";
     $uebersetzung['dokument_proformarechnungsdatum']['deutsch'] = "Datum";
@@ -27638,6 +27256,23 @@ function Firmendaten($field,$projekt="")
 
         $eigenernummernkreis = $this->app->DB->Select("SELECT eigenernummernkreis FROM projekt WHERE id='$projekt' LIMIT 1");
         $belegnr = '';
+
+        $untergeordnetes_projekt = $projekt;
+        if (empty($eigenernummernkreis)) {
+            do {
+                $uebergeordnetes_projekt = $this->app->DB->Select("SELECT uebergeordnetes_projekt FROM projekt WHERE id='$untergeordnetes_projekt' LIMIT 1");                
+                if (!empty($uebergeordnetes_projekt)) {
+                    $eigenernummernkreis = $this->app->DB->Select("SELECT eigenernummernkreis FROM projekt WHERE id='$uebergeordnetes_projekt' LIMIT 1");
+                    if ($eigenernummernkreis) {
+                        $projekt = $uebergeordnetes_projekt;
+                        break;
+                    } else {
+                        $untergeordnetes_projekt = $uebergeordnetes_projekt;
+                    }
+                }
+            } while (!empty($uebergeordnetes_projekt) && $uebergeordnetes_projekt != $projekt);
+        }
+
         if($eigenernummernkreis=='1')
         {
           $allowedtypes = ['angebot', 'auftrag', 'rechnung', 'lieferschein', 'arbeitsnachweis', 'reisekosten',
@@ -29629,6 +29264,24 @@ function Firmendaten($field,$projekt="")
         }
       }
 
+      function SetXMLRechnung($id)
+      {
+        $obj = $this->app->erp->LoadModul('rechnung');
+        if(!empty($obj) && method_exists($obj,'SetXMLRechnung')) {
+          return $obj->SetXMLRechnung($id);
+        }
+        return 0;
+      }
+
+      function GetXMLRechnung($id)
+      {
+        $obj = $this->app->erp->LoadModul('rechnung');
+        if(!empty($obj) && method_exists($obj,'RechnungSmarty')) {
+          return $obj->RechnungSmarty(id: $id, returnvalue: true);
+        }
+        return 0;
+      }
+
       function BelegFreigabe($beleg,$id)
       {
         if($id <= 0 || empty($beleg)) {
@@ -29683,6 +29336,9 @@ function Firmendaten($field,$projekt="")
               SET a.`laststorage_changed` = NOW() WHERE `ap`.auftrag = %d', $id
             )
           );
+        }
+        if ($beleg === 'rechnung') {        
+          $this->SetXMLRechnung($id);
         }
       }
 
@@ -33442,7 +33098,6 @@ function Firmendaten($field,$projekt="")
         }
       }
 
-
       function DeleteBestellung($id)
       {
         /** @var Bestellung $obj */
@@ -33453,7 +33108,6 @@ function Firmendaten($field,$projekt="")
         }
       }
 
-
       function CreateRechnung($adresse="")
       {
         /** @var Rechnung $obj */
@@ -33462,7 +33116,6 @@ function Firmendaten($field,$projekt="")
           return $obj->CreateRechnung($adresse);
         }
       }
-
 
       public function GetStandardWaehrung($projekt=0)
       {
@@ -36752,23 +36405,6 @@ function Firmendaten($field,$projekt="")
         return $tmpname;
       }
 
-      function CreateDateiOhneInitialeVersion($titel,$beschreibung,$nummer,$ersteller,$without_log=false)
-      {
-        if(!$without_log)
-        {
-          $this->app->DB->Insert("INSERT INTO datei (id,titel,beschreibung,nummer,firma) VALUES
-              ('','$titel','$beschreibung','$nummer','".$this->app->User->GetFirma()."')");
-        } else {
-          $this->app->DB->InsertWithoutLog("INSERT INTO datei (id,titel,beschreibung,nummer,firma) VALUES
-              ('','$titel','$beschreibung','$nummer',1)");
-        }
-
-        $fileid = $this->app->DB->GetInsertID();
-        //$this->AddDateiVersion($fileid,$ersteller,$name,"Initiale Version",$datei,$without_log);
-
-        return  $fileid;
-      }
-  
       function GetDMSPath($id, $path = '', $cache = false)
       {
         $ids = explode('_', $id, 2);
@@ -36866,7 +36502,7 @@ function Firmendaten($field,$projekt="")
         }
       }
 
-      function CreateDateiWithStichwort($name, $titel,$beschreibung,$nummer,$datei, $ersteller ,$subjekt,$objekt,$parameter, $path = "",$without_log=false)
+      function CreateDateiWithStichwort($name, $titel,$beschreibung,$nummer,$datei, $ersteller ,$subjekt,$objekt,$parameter, $path = "",$without_log=false,$geschuetzt=null)
       {
         $dateien = $this->app->DB->SelectArr("SELECT dv.datei, dv.id FROM datei_stichwoerter ds 
           INNER JOIN datei d ON ds.datei = d.id AND ifnull(d.geloescht,0) = 0
@@ -36902,12 +36538,12 @@ function Firmendaten($field,$projekt="")
             }
           }
         }
-        $fileid = $this->CreateDatei($name,$titel,$beschreibung,$nummer,$datei,$ersteller,$without_log,$path);
+        $fileid = $this->CreateDatei($name,$titel,$beschreibung,$nummer,$datei,$ersteller,$without_log,$path,$geschuetzt);
         $this->AddDateiStichwort($fileid,$subjekt,$objekt,$parameter,$without_log);
         return $fileid;
       }
 
-      function CreateDatei($name,$titel,$beschreibung,$nummer,$datei,$ersteller,$without_log=false,$path="")
+      function CreateDatei($name,$titel,$beschreibung,$nummer,$datei,$ersteller,$without_log=false,$path="",$geschuetzt=null)
       {
         // Anführungszeichen in Unterstriche wandeln
         $name = str_replace(['\\\'', '\\"', '\'', '"'], '_', $name);
@@ -36919,13 +36555,15 @@ function Firmendaten($field,$projekt="")
                 titel,
                 beschreibung,
                 nummer,
-                firma
+                firma,
+                geschuetzt
             ) VALUES (
                 '',
                 '".$this->app->DB->real_escape_string($titel)."',
                 '".$this->app->DB->real_escape_string($beschreibung)."',
                 '".$this->app->DB->real_escape_string($nummer)."',
-                '".$this->app->User->GetFirma()."'
+                '".$this->app->User->GetFirma()."',
+                '".$geschuetzt."'
             )"
           );
         } else {
@@ -36934,13 +36572,15 @@ function Firmendaten($field,$projekt="")
                 titel,
                 beschreibung,
                 nummer,
-                firma
+                firma,
+                geschuetzt
             ) VALUES (
                 '',
                 '".$this->app->DB->real_escape_string($titel)."',
                 '".$this->app->DB->real_escape_string($beschreibung)."',
                 '".$this->app->DB->real_escape_string($nummer)."',
-                1
+                1,
+                '".$geschuetzt."'
             )
           ");
         }
@@ -37137,6 +36777,12 @@ function Firmendaten($field,$projekt="")
         if(!$id){
           return false;
         }
+
+        $geschuetzt = $this->app->DB->Select("SELECT geschuetzt FROM datei WHERE id = '".$id."'");
+        if ($geschuetzt) {
+          return false;
+        }
+
         $error = false;
         $versionen = $this->app->DB->SelectArr("SELECT * FROM datei_version WHERE datei = '".$id."'");
         if($versionen)
@@ -39630,7 +39276,7 @@ function Firmendaten($field,$projekt="")
     }
     return $sipuid;
   }
-}
+} // END erpAPI
 
 
 function parse_csv($str,$parse_split_parameter="")

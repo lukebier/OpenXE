@@ -7204,6 +7204,9 @@ class Artikel extends GenArtikel {
           $this->app->erp->MenuEintrag("index.php?module=artikel&action=lager&id=$id",'Lager');
         }
 
+        if ($tmp[0]['seriennummern'] <> 'keine') {
+            $this->app->erp->MenuEintrag("index.php?module=seriennummern&action=nummern_list&artikel=$id&from=artikel",'Seriennummern');
+        }
 
         if($tmp[0]['mindesthaltbarkeitsdatum']=='1' && $tmp[0]['chargenverwaltung']<=0)
         {
@@ -7632,7 +7635,7 @@ class Artikel extends GenArtikel {
 
     $this->app->YUI->CkEditor('artikelbeschreibung_de_anzeige','belege');
 
-    $this->app->Tpl->Set('ARTIKEL_DE_ANZEIGE','<input type="text" name="" readonly style="background-color:#eee; border-color:#ddd;" size="70" maxlength="60" value="'.$artikel_de_anzeige.'">');
+    $this->app->Tpl->Set('ARTIKEL_DE_ANZEIGE','<input type="text" name="" readonly style="background-color:#eee; border-color:#ddd;" size="70" maxlength="60" value="'.htmlentities($artikel_de_anzeige).'">');
     $this->app->Tpl->Set('KURZTEXT_DE_ANZEIGE','<textarea readonly rows="2" cols="70" readonly style="background-color:#eee; border-color:#ddd;">'.$kurztext_de_anzeige.'</textarea>');
     $this->app->Tpl->Set('ARTIKELBESCHREIBUNG_DE_ANZEIGE','<textarea style="background-color:#eee; border-color:#ddd;" readonly rows="5" cols="70" style="color:grey" name="artikelbeschreibung_de_anzeige" id="artikelbeschreibung_de_anzeige">'.$artikelbeschreibung_de_anzeige.'</textarea>');
 
