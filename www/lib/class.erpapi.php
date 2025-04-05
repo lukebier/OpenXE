@@ -23,6 +23,7 @@
 <?php
 use Xentral\Components\MailClient\Client\MimeMessageFormatterInterface;
 use Xentral\Core\LegacyConfig\ConfigLoader;
+use Xentral\Modules\Onlineshop\Data\ArticleExportResult;
 use Xentral\Modules\SystemMailClient\MailClientConfigProvider;
 use Xentral\Modules\SystemMailClient\MailClientProvider;
 use Xentral\Modules\SystemMailer\Data\EmailBackupAccount;
@@ -20721,7 +20722,7 @@ function ChargenMHDAuslagern($artikel, $menge, $lagerplatztyp, $lpid,$typ,$wert,
 
         $this->LogFile('*** UPDATE '.$lagerartikel[$ij]['nummer'].' '.$lagerartikel[$ij]['name_de'].' Shop: '.$shop.' Lagernd: '.$verkaufbare_menge.' Korrektur: '.round((float) ($verkaufbare_menge_korrektur - $verkaufbare_menge),7).' Pseudolager: '.round((float) $pseudolager,8).' Result: '.(is_array($result)?$result['status']:$result), $result);
 
-        if ((is_array($result)?$result['status'] == 1:false) || $result === 1) {
+        if ((is_array($result) && $result instanceof ArticleExportResult ? $result->success : false) || $result === 1) {
             $cacheQuantity = (int) $verkaufbare_menge_korrektur + (int) $pseudolager;
             $this->app->DB->Update(
               "UPDATE `artikel` SET `cache_lagerplatzinhaltmenge` = '{$cacheQuantity}'
@@ -23015,7 +23016,7 @@ function ChargenMHDAuslagern($artikel, $menge, $lagerplatztyp, $lpid,$typ,$wert,
     }
     $ansprechpartner = str_replace('&lt;','<',$ansprechpartner);
     $ansprechpartner = str_replace('&gt;','>',$ansprechpartner);
-    list($name, $email) = explode('<', trim($ansprechpartner,'>'));
+    [$name, $email] = explode('<', trim($ansprechpartner,'>'));
 
     $betreff = str_replace('\"','"',$betreff);
     $betreff = str_replace("\'","'",$betreff);
@@ -33269,7 +33270,7 @@ function Firmendaten($field,$projekt="")
         } 
         if($kurs<>0)
         {
-          $this->app->DB->Update("UPDATE $typ SET kurs='$kurs' WHERE id='$id' LIMIT 1");
+          $this->app->DB->Update("UPDATE $typ SET kurs='$kurs' WHERE id='$id' AND kurs = 0 LIMIT 1");
         }
       }
 
@@ -34128,7 +34129,7 @@ function Firmendaten($field,$projekt="")
         }
 
         //$this->LoadSteuersaetze($id,$art); //03.01.2019 Bruno entfernt, da Shopaufträge umsgestellt werden
-        //$this->LoadKurs($id,$art); //03.01.2019 Bruno entfernt
+        $this->LoadKurs($id,$art); //03.01.2019 Bruno entfernt
         $belegarr = $this->app->DB->SelectRow("SELECT * FROM $art WHERE id='$id' LIMIT 1");
         if(empty($belegarr))
         {
@@ -34214,7 +34215,7 @@ function Firmendaten($field,$projekt="")
           $rabatt5 = 0;
           if($art==='angebot' || $art==='auftrag' || $art==='rechnung' || $art==='gutschrift' || $art==='proformarechnung')
           {
-            $rabattarr = $this->app->DB->SelectRow("SELECT * FROM $art WHERE id='$id' LIMIT 1");
+            $rabattarr = $this->app->DB->SelectRow("SELECT rabatt, rabatt1, rabatt2, rabatt3, rabatt4, rabatt5, realrabatt FROM $art WHERE id='$id' LIMIT 1");
             if(!empty($rabattarr)){
               $grundrabatt = $rabattarr['rabatt'];
               $rabatt1 = $rabattarr['rabatt1'];
@@ -34222,6 +34223,17 @@ function Firmendaten($field,$projekt="")
               $rabatt3 = $rabattarr['rabatt3'];
               $rabatt4 = $rabattarr['rabatt4'];
               $rabatt5 = $rabattarr['rabatt5'];
+            }
+
+            $gruppe = $belegarr['gruppe'];
+            $preisgruppen = $this->app->DB->SelectRow("SELECT * FROM gruppen WHERE id = '$gruppe' AND art = 'preisgruppe' LIMIT 1");
+            if(!empty($preisgruppen)){
+              $grundrabatt = $preisgruppen['grundrabatt'];
+              $rabatt1 = $preisgruppen['rabatt1'];
+              $rabatt2 = $preisgruppen['rabatt2'];
+              $rabatt3 = $preisgruppen['rabatt3'];
+              $rabatt4 = $preisgruppen['rabatt4'];
+              $rabatt5 = $preisgruppen['rabatt5'];
             }
 
             if($grundrabatt>0) $rabattarr[] =  ((100-$grundrabatt)/100.0);
